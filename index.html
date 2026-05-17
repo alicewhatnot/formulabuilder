@@ -4,21 +4,30 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Formula Builder</title>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Syne:wght@400;600;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Roboto:wght@400;600;800&display=swap" rel="stylesheet">
 <style>
-  :root {
-    --bg: #0f0f11;
-    --surface: #18181d;
-    --border: #2a2a33;
-    --accent: #e8ff47;
-    --accent2: #47c8ff;
-    --danger: #ff5c5c;
-    --text: #f0f0f0;
-    --muted: #666680;
-    --op-add: #6bffb8;
-    --op-sub: #ff7e7e;
-    --op-mul: #ffc96b;
-    --op-div: #b47eff;
+:root {
+    --bg: #fff6fb;
+    --surface: #ffffff;
+    --border: #efd6e6;
+
+    --accent: #d94f8a;
+    --accent2: #f07cab;
+
+    --danger: #d85c7a;
+
+    --text: #1d1118;
+    --muted: #8b7481;
+
+    /* keep operations visually distinct */
+    --op-add: #e05297; /* pink */
+    --op-sub: #d96b6b; /* rose red */
+    --op-mul: #56ada7; /* teal */
+    --op-div: #9b59b6; /* purple */
+
+    --font-body: 'IBM Plex Mono', monospace;
+    --font-heading: 'Roboto', sans-serif;
+    --font-ui: 'Roboto', sans-serif;
   }
 
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -26,7 +35,7 @@
   body {
     background: var(--bg);
     color: var(--text);
-    font-family: 'IBM Plex Mono', monospace;
+    font-family: var(--font-body);
     min-height: 100vh;
     padding: 2rem 1rem 4rem;
   }
@@ -37,7 +46,7 @@
   }
 
   header h1 {
-    font-family: 'Syne', sans-serif;
+    font-family: var(--font-ui);
     font-weight: 800;
     font-size: clamp(2rem, 5vw, 3.2rem);
     letter-spacing: -0.03em;
@@ -69,7 +78,7 @@
 
   .step-row {
     display: grid;
-    grid-template-columns: 38px 110px 1fr 1fr auto;
+    grid-template-columns: 38px 130px 1fr 1fr auto;
     gap: 0.5rem;
     align-items: center;
     background: var(--surface);
@@ -112,8 +121,11 @@
     cursor: pointer;
   }
 
-  .op-select option { background: #1a1a22; }
-
+  .op-select option {
+    background: #ffffff;
+    color: var(--text);
+  }
+  
   /* colour the select border by operation */
   .step-row[data-op="+"] select.op-select { border-color: var(--op-add); color: var(--op-add); }
   .step-row[data-op="-"] select.op-select { border-color: var(--op-sub); color: var(--op-sub); }
@@ -142,7 +154,7 @@
   }
 
   .btn {
-    font-family: 'Syne', sans-serif;
+    font-family: var(--font-ui);
     font-weight: 600;
     font-size: 0.82rem;
     letter-spacing: 0.05em;
@@ -190,7 +202,7 @@
   #result-panel.visible { display: block; animation: fadeIn 0.2s ease; }
 
   #result-panel h2 {
-    font-family: 'Syne', sans-serif;
+    font-family: var(--font-heading);
     font-weight: 800;
     font-size: 0.7rem;
     letter-spacing: 0.12em;
@@ -243,7 +255,7 @@
     text-transform: uppercase;
   }
   .final-number {
-    font-family: 'Syne', sans-serif;
+    font-family: var(--font-heading);
     font-weight: 800;
     font-size: 2.4rem;
     color: var(--accent);
@@ -280,7 +292,7 @@
   <!-- Starting value -->
   <div class="start-row">
     <label>START WITH</label>
-    <input type="number" id="start-value" value="0" step="any" placeholder="0">
+    <input type="text" id="start-value" value="0" step="any" placeholder="0">
   </div>
 
   <!-- Steps -->
@@ -335,7 +347,7 @@
         <option value="*">× multiply</option>
         <option value="/">÷ divide</option>
       </select>
-      <input type="number" class="val-input" placeholder="amount" value="1" step="any">
+      <input type="text" class="val-input" placeholder="amount" value="1" step="any">
       <input type="text"   class="name-input" placeholder="variable name">
       <button class="btn-remove" onclick="removeStep(this)" title="Remove">✕</button>
     `;
@@ -363,15 +375,28 @@
     });
   }
 
-  function fmt(n) {
-    // nice number formatting
+  function fmt(n, currency = true) {
     if (!isFinite(n)) return n.toString();
-    const s = parseFloat(n.toPrecision(10)).toString();
-    return s;
+
+    if (!currency) {
+      return new Intl.NumberFormat('en-GB', {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 2
+      }).format(n);
+    }
+
+    return new Intl.NumberFormat('en-GB', {
+      style: 'currency',
+      currency: 'GBP',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 2
+    }).format(n);
   }
 
   function calculate() {
-    const startVal = parseFloat(document.getElementById('start-value').value) || 0;
+    const startVal = parseFloat(
+      String(document.getElementById('start-value').value).replace(/,/g, '')
+    ) || 0;
     const rows = document.querySelectorAll('.step-row');
 
     const panel = document.getElementById('result-panel');
@@ -392,7 +417,9 @@
 
     rows.forEach(row => {
       const op   = row.dataset.op;
-      const val  = parseFloat(row.querySelector('.val-input').value);
+      const val = parseFloat(
+        String(row.querySelector('.val-input').value).replace(/,/g, '')
+      );
       const name = row.querySelector('.name-input').value.trim() || `value`;
 
       if (isNaN(val)) return;
@@ -404,12 +431,13 @@
       else if (op === '/') running = val !== 0 ? running / val : NaN;
 
       const meta = OP_LABELS[op];
+      const isCurrency = op === '+' || op === '-';
       const line = document.createElement('div');
       line.className = 'trace-line';
       line.innerHTML = `
         <span class="trace-op ${meta.cls}">${op}</span>
         <span class="trace-desc">${meta.word} <strong>${name}</strong></span>
-        <span class="trace-val">${fmt(val)}</span>
+        <span class="trace-val">${fmt(val, isCurrency)}</span>
         <span class="trace-running">→ ${isFinite(running) ? fmt(running) : '∞ / undefined'}</span>
       `;
       trace.appendChild(line);
