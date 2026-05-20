@@ -329,6 +329,64 @@
     '/': { word: 'Divided by',   cls: 'div' },
   };
 
+  const SUFFIXES = { m: 1e6, b: 1e9, t: 1e12 };
+
+  function parseSuffix(raw) {
+    if (!raw) return NaN;
+    const s = String(raw).replace(/,/g, '').trim();
+    const match = s.match(/^(-?[\d.]+)\s*([mMbBtT]?)$/);
+    if (!match) return NaN;
+    const num = parseFloat(match[1]);
+    const suf = match[2].toLowerCase();
+    if (suf && SUFFIXES[suf]) return num * SUFFIXES[suf];
+    return num;
+  }
+
+  function getSuffix(raw) {
+    if (!raw) return null;
+    const s = String(raw).replace(/,/g, '').trim();
+    const match = s.match(/^(-?[\d.]+)\s*([mMbBtT])$/);
+    if (!match) return null;
+    return match[2].toUpperCase();
+  }
+
+  function isValidInput(raw) {
+    if (!raw || !String(raw).trim()) return true;
+    const s = String(raw).replace(/,/g, '').trim();
+    return /^-?[\d.]+\s*[mMbBtT]?$/.test(s);
+  }
+
+  function updateSuffix(input, badgeId) {
+    const badge = document.getElementById(badgeId);
+    if (!badge) return;
+    const val = input.value.trim();
+    if (!val || val === '0') { badge.textContent = ''; return; }
+    if (!isValidInput(val)) { badge.textContent = '?'; badge.className = 'suffix-badge suffix-invalid'; return; }
+    const suf = getSuffix(val);
+    if (suf) {
+      badge.textContent = suf;
+      badge.className = 'suffix-badge suffix-' + suf;
+    } else {
+      badge.textContent = '';
+    }
+  }
+
+  function fmtCompact(n) {
+    if (!isFinite(n)) return n.toString();
+    const abs = Math.abs(n);
+    const sign = n < 0 ? '-' : '';
+    if (abs >= 1e12) return sign + (abs / 1e12).toLocaleString('en-GB', { minimumFractionDigits: 0, maximumFractionDigits: 3 }) + 'T';
+    if (abs >= 1e9)  return sign + (abs / 1e9).toLocaleString('en-GB',  { minimumFractionDigits: 0, maximumFractionDigits: 3 }) + 'B';
+    if (abs >= 1e6)  return sign + (abs / 1e6).toLocaleString('en-GB',  { minimumFractionDigits: 0, maximumFractionDigits: 3 }) + 'M';
+    return n.toLocaleString('en-GB', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+  }
+
+  function fmtFull(n) {
+    if (!isFinite(n)) return '';
+    if (Math.abs(n) < 1e6) return '';
+    return '(' + n.toLocaleString('en-GB', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) + ')';
+  }
+
   function addStep() {
     stepCount++;
     document.getElementById('empty-hint')?.remove();
@@ -377,14 +435,9 @@
 
   function fmt(n, currency = true) {
     if (!isFinite(n)) return n.toString();
-
-    if (!currency) {
-      return new Intl.NumberFormat('en-GB', {
-        minimumFractionDigits: 0,
-        maximumFractionDigits: 2
-      }).format(n);
-    }
-
+    if (!currency) return fmtCompact(n);          // NEW
+    const abs = Math.abs(n);
+    if (abs >= 1e6) return '£' + fmtCompact(n);   // NEW
     return new Intl.NumberFormat('en-GB', {
       style: 'currency',
       currency: 'GBP',
@@ -394,18 +447,13 @@
   }
 
   function calculate() {
-    const startVal = parseFloat(
-      String(document.getElementById('start-value').value).replace(/,/g, '')
-    ) || 0;
+    const startVal = parseSuffix(document.getElementById('start-value').value) || 0; // CHANGED
     const rows = document.querySelectorAll('.step-row');
-
     const panel = document.getElementById('result-panel');
     const trace = document.getElementById('trace');
     trace.innerHTML = '';
-
     let running = startVal;
 
-    // First line: starting value
     const startLine = document.createElement('div');
     startLine.className = 'trace-line';
     startLine.innerHTML = `
@@ -416,15 +464,11 @@
     trace.appendChild(startLine);
 
     rows.forEach(row => {
-      const op   = row.dataset.op;
-      const val = parseFloat(
-        String(row.querySelector('.val-input').value).replace(/,/g, '')
-      );
-      const name = row.querySelector('.name-input').value.trim() || `value`;
-
+      const op  = row.dataset.op;
+      const val = parseSuffix(row.querySelector('.val-input').value); // CHANGED
+      const name = row.querySelector('.name-input').value.trim() || 'value';
       if (isNaN(val)) return;
 
-      let prev = running;
       if      (op === '+') running += val;
       else if (op === '-') running -= val;
       else if (op === '*') running *= val;
@@ -443,8 +487,17 @@
       trace.appendChild(line);
     });
 
-    document.getElementById('final-number').textContent =
-      isFinite(running) ? fmt(running) : (isNaN(running) ? 'undefined (÷0)' : '∞');
+    // CHANGED: compact display + full raw for large numbers
+    if (isFinite(running) && Math.abs(running) >= 1e6) {
+      document.getElementById('final-number').textContent = '£' + fmtCompact(running);
+      document.getElementById('final-raw').textContent = fmtFull(running);
+    } else if (isFinite(running)) {
+      document.getElementById('final-number').textContent = fmt(running);
+      document.getElementById('final-raw').textContent = '';
+    } else {
+      document.getElementById('final-number').textContent = isNaN(running) ? 'undefined (÷0)' : '∞';
+      document.getElementById('final-raw').textContent = '';
+    }
 
     panel.classList.add('visible');
     panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
